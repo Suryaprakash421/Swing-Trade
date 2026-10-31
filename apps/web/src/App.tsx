@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { api, ApiError, post } from './api';
+import { mergeRefreshScope, retainEqual, type RefreshScope } from './refresh';
 import Auth from './Auth';
 import Dashboard from './Dashboard';
 import TradeForm from './TradeForm';
@@ -53,6 +54,7 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const refreshingRef = useRef(false);
+  const pendingRefresh = useRef<{ silent: boolean; scope: RefreshScope } | null>(null);
   const authEpoch = useRef(0);
   const activeAuth = useRef<AuthData | null>(null);
   const activeRefresh = useRef<AbortController | null>(null);
@@ -74,6 +76,7 @@ export default function App() {
     activeRefresh.current?.abort();
     activeRefresh.current = null;
     refreshingRef.current = false;
+    pendingRefresh.current = null;
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setAccount(null);
     setTrades([]);
@@ -131,9 +134,16 @@ export default function App() {
     };
   }, [loadAuth]);
   const refresh = useCallback(
-    async (silent = false) => {
-      if (!auth || activeAuth.current?.accountId !== auth.accountId || refreshingRef.current)
+    async function refreshData(silent = false, scope: RefreshScope = 'all'): Promise<void> {
+      if (!auth || activeAuth.current?.accountId !== auth.accountId) return;
+      if (refreshingRef.current) {
+        const pending = pendingRefresh.current;
+        pendingRefresh.current = {
+          silent: silent && (pending?.silent ?? true),
+          scope: pending ? mergeRefreshScope(pending.scope, scope) : scope,
+        };
         return;
+      }
       const epoch = authEpoch.current;
       const controller = new AbortController();
       activeRefresh.current = controller;
@@ -142,18 +152,22 @@ export default function App() {
       try {
         const [a, t, s, e] = await Promise.all([
           api<Account>('/account', { signal: controller.signal }),
-          api<{ trades: Trade[] }>('/trades', { signal: controller.signal }),
-          api<Stats>('/stats', { signal: controller.signal }),
-          api<EquityCurve>('/stats/equity-curve', { signal: controller.signal }),
+          scope !== 'account'
+            ? api<{ trades: Trade[] }>('/trades', { signal: controller.signal })
+            : null,
+          scope === 'all' ? api<Stats>('/stats', { signal: controller.signal }) : null,
+          scope === 'all'
+            ? api<EquityCurve>('/stats/equity-curve', { signal: controller.signal })
+            : null,
         ]);
         if (epoch !== authEpoch.current || activeAuth.current?.accountId !== auth.accountId) return;
-        setAccount(a);
-        setTrades(t.trades);
-        setStats(s);
-        setCurve(e);
+        setAccount((previous) => retainEqual(previous, a));
+        if (t) setTrades((previous) => retainEqual(previous, t.trades));
+        if (s) setStats((previous) => retainEqual(previous, s));
+        if (e) setCurve((previous) => retainEqual(previous, e));
         setLastUpdated(new Date());
         setError('');
-        setRevision((v) => v + 1);
+        if (scope === 'all') setRevision((v) => v + 1);
       } catch (e) {
         if (epoch !== authEpoch.current || controller.signal.aborted) return;
         if (e instanceof ApiError && e.status === 401) {
@@ -164,6 +178,9 @@ export default function App() {
           activeRefresh.current = null;
           refreshingRef.current = false;
           setRefreshing(false);
+          const pending = pendingRefresh.current;
+          pendingRefresh.current = null;
+          if (pending) void refreshData(pending.silent, pending.scope);
         }
       }
     },
@@ -175,9 +192,17 @@ export default function App() {
     const timer = setInterval(() => void refresh(true), 20000);
     const stream = new EventSource('/api/stream', { withCredentials: true });
     let timeout: ReturnType<typeof setTimeout> | null = null;
-    const invalidate = () => {
+    let pendingScope: RefreshScope | null = null;
+    const invalidate = (event: Event) => {
+      const scope =
+        event.type === 'price' ? 'market' : event.type === 'feed_status' ? 'account' : 'all';
+      pendingScope = pendingScope ? mergeRefreshScope(pendingScope, scope) : scope;
       if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => void refresh(true), 500);
+      timeout = setTimeout(() => {
+        const next = pendingScope!;
+        pendingScope = null;
+        void refresh(true, next);
+      }, 500);
     };
     for (const event of ['price', 'trade_filled', 'trade_exited', 'trade_updated', 'feed_status'])
       stream.addEventListener(event, invalidate);
@@ -196,6 +221,7 @@ export default function App() {
     activeRefresh.current?.abort();
     activeRefresh.current = null;
     refreshingRef.current = false;
+    pendingRefresh.current = null;
     try {
       await post('/auth/logout', {});
       if (epoch === authEpoch.current && accountId === activeAuth.current?.accountId) {

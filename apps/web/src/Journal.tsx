@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowDownToLine, ArrowRight, BookOpen, ChevronRight, Search } from 'lucide-react';
 import { api } from './api';
+import { retainEqual } from './refresh';
 import type { Trade } from './types';
 import {
   Button,
@@ -32,6 +33,7 @@ export default function Journal({
   const [trades, setTrades] = useState<Trade[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const loadedQuery = useRef<string | null>(null);
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (symbol) params.set('symbol', symbol.trim().toUpperCase());
@@ -42,12 +44,17 @@ export default function Journal({
   const query = params.toString();
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
+    // A successful empty result is loaded data too. Revision updates stay silent.
+    setLoading(loadedQuery.current !== query);
     const timer = setTimeout(() => {
-      setLoading(true);
       setError('');
-      api<{ trades: Trade[] }>(`/trades?${query}`)
+      api<{ trades: Trade[] }>(`/trades?${query}`, { signal: controller.signal })
         .then((r) => {
-          if (active) setTrades(r.trades);
+          if (active) {
+            loadedQuery.current = query;
+            setTrades((previous) => retainEqual(previous, r.trades));
+          }
         })
         .catch((e) => {
           if (active) setError(e.message);
@@ -59,6 +66,7 @@ export default function Journal({
     return () => {
       active = false;
       clearTimeout(timer);
+      controller.abort();
     };
   }, [query, revision]);
   return (

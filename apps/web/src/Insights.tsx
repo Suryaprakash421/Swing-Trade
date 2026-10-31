@@ -8,6 +8,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { api } from './api';
+import { retainEqual } from './refresh';
 import type { EquityCurve, Stats } from './types';
 import {
   CardHeading,
@@ -45,7 +46,7 @@ export default function Insights({
       setError('');
       api<Stats>(`/stats?${query}`)
         .then((r) => {
-          if (active) setStats(r);
+          if (active) setStats((previous) => retainEqual(previous, r));
         })
         .catch((e) => {
           if (active) setError(e.message);

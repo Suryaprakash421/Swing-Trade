@@ -32,6 +32,7 @@ The named database volume survives `docker compose down`. Do not add `--volumes`
 Node.js **24 LTS**, npm workspaces, and PostgreSQL **16+** are required. Configure `.env` with a reachable local `DATABASE_URL`. For Vite development set `APP_ORIGIN=http://localhost:5173` and `COOKIE_SECURE=false`, then:
 
 ```sh
+nvm use # Uses the project's .nvmrc; run nvm install first if needed.
 npm ci
 npm run migrate
 npm run dev
@@ -42,7 +43,7 @@ The development tooling starts the API, engine, and Vite web client; open **http
 If Docker or a system PostgreSQL server is unavailable, the optional local development runner starts a persistent PostgreSQL 16 instance bound to loopback. After `npm ci`, run this in a separate terminal:
 
 ```sh
-node --import tsx scripts/dev-db.ts
+npm run dev:db
 ```
 
 Set `.env` to `DATABASE_URL=postgresql://paperlane:local-development-only@127.0.0.1:55432/papertrade`, then run the migration/development commands above. Its data is stored under `.local/postgres`, excluded from Git and Docker images. The fixed local password and optional embedded binary are for development only; production uses the Compose database with your own random password. Stop the runner with Ctrl+C.

@@ -332,6 +332,13 @@ integration('API with PostgreSQL: account isolation and transactional execution'
       await waitUntil(() => s.text().includes(id));
       expect(s.text()).not.toContain(pendingA);
       expect(s.text()).not.toContain(closedA);
+      // Stream ticks keep the connection alive without replaying unchanged data.
+      await waitUntil(() => (s.text().match(/: heartbeat/g) ?? []).length >= 3, 10000);
+      expect(s.text().match(/event: feed_status\n/g)).toHaveLength(1);
+      const prices = [...s.text().matchAll(/event: price\ndata: ([^\n]+)/g)]
+        .map((match) => JSON.parse(match[1]!))
+        .filter((quote) => quote.symbol === 'SBIN');
+      expect(prices).toHaveLength(1);
       const logout = await api('POST', '/api/auth/logout', streamCookie, {});
       expect(logout.statusCode).toBe(204);
       await waitUntil(s.ended, 2000);

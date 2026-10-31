@@ -113,6 +113,8 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
     reply.raw.write('retry: 3000\n\n');
     let closed = false,
       busy = false;
+    let lastFeed = '';
+    const lastQuotes = new Map<string, string>();
     let cursor = /^\d+$/.test(String(request.headers['last-event-id'] ?? ''))
       ? String(request.headers['last-event-id'])
       : '0';
@@ -163,8 +165,25 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         }
         const quotes =
           await sql`select distinct q.* from latest_quotes q join trades t on t.symbol=q.symbol where t.account_id=${a.accountId} and t.status in ('OPEN','PENDING')`;
-        for (const q of quotes) send('price', { symbol: q.symbol, ...quoteObject(q) });
-        send('feed_status', (await accountObject(a.accountId)).feed);
+        const symbols = new Set(quotes.map((q) => String(q.symbol)));
+        for (const symbol of lastQuotes.keys()) {
+          if (!symbols.has(symbol)) lastQuotes.delete(symbol);
+        }
+        for (const q of quotes) {
+          const data = { symbol: q.symbol, ...quoteObject(q) };
+          const serialized = JSON.stringify(data);
+          if (lastQuotes.get(q.symbol) !== serialized) {
+            send('price', data);
+            lastQuotes.set(q.symbol, serialized);
+          }
+        }
+        const account = await accountObject(a.accountId);
+        // Include market transitions even if the feed itself has not changed.
+        const feed = JSON.stringify({ feed: account.feed, marketOpen: account.marketOpen });
+        if (feed !== lastFeed) {
+          send('feed_status', account.feed);
+          lastFeed = feed;
+        }
         reply.raw.write(': heartbeat\n\n');
       } catch (error) {
         request.log.warn({ err: error }, 'stream interrupted');
