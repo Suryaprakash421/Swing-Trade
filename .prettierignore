@@ -1,0 +1,9 @@
+node_modules
+package-lock.json
+apps/web/dist
+coverage
+test-results
+playwright-report
+docs/reference
+*.sql
+.env

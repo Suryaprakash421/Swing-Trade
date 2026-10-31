@@ -1,0 +1,69 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: papertrade
+          POSTGRES_PASSWORD: paperlane-ci-only
+          POSTGRES_DB: papertrade
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U papertrade -d papertrade"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://papertrade:paperlane-ci-only@127.0.0.1:5432/papertrade
+      COOKIE_SECURE: 'false'
+      APP_ORIGIN: http://127.0.0.1:3100
+      HOST: 127.0.0.1
+      PORT: '3100'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run migrate
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Browser integration
+        run: |
+          npm run start:api >/tmp/paperlane-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3100/api/health >/dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:browser
+      - name: Upload browser screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-verification
+          path: |
+            .local/screenshots
+            test-results
+          retention-days: 14
+      - name: API logs on failure
+        if: failure()
+        run: cat /tmp/paperlane-api.log 2>/dev/null || true
+      - name: Check deployment image
+        run: docker build --target api -t paperlane:verify .

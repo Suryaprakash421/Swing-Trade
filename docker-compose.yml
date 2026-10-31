@@ -1,0 +1,79 @@
+name: paperlane
+
+x-app: &app
+  init: true
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+  environment: &app-env
+    DATABASE_URL: postgresql://papertrade:${DB_PASSWORD:?Set DB_PASSWORD in .env}@db:5432/papertrade
+    NODE_ENV: production
+    APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+    COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-true}
+    TRUST_PROXY: 'true'
+    TZ: Asia/Kolkata
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '3'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: papertrade
+      POSTGRES_USER: papertrade
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+  api:
+    <<: *app
+    build:
+      context: .
+      target: api
+    environment:
+      <<: *app-env
+      HOST: 0.0.0.0
+      PORT: 3000
+    ports:
+      - 127.0.0.1:${APP_PORT:-3000}:3000
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  engine:
+    <<: *app
+    build:
+      context: .
+      target: engine
+    environment:
+      <<: *app-env
+      PRICE_PROVIDER: ${PRICE_PROVIDER:-yahoo}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-20000}
+
+volumes:
+  pgdata:

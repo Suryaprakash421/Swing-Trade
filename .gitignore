@@ -1,0 +1,26 @@
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and generated artifacts
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Database data and backups
+pgdata/
+backups/
+*.dump
+
+# Local editor and OS files
+.DS_Store
+.idea/
+.vscode/
+.local/
+test-results/
+playwright-report/
