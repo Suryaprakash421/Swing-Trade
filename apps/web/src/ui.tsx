@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { ArrowUpRight, ChevronRight, CircleHelp, Leaf, X } from 'lucide-react';
+import { holdingDays, rMultiple, tradePnl, tradeReturnPercent } from './pnl';
 import type { EquityCurve, Trade } from './types';
 
 export const num = (value: unknown) => Number(value ?? 0);
@@ -12,6 +13,13 @@ export const money = (value: unknown, decimals = 2) =>
   }).format(num(value));
 export const signed = (value: unknown) => `${num(value) > 0 ? '+' : ''}${money(value)}`;
 export const percent = (value: unknown, digits = 1) => `${num(value).toFixed(digits)}%`;
+/** Signed percentage for returns: "+0.14%", "−2.50%", or an em dash when no ratio exists. */
+export const signedPercent = (value: number | null | undefined, digits = 2) =>
+  value == null || !Number.isFinite(value)
+    ? '—'
+    : `${value > 0 ? '+' : ''}${value.toFixed(digits)}%`;
+export const rLabel = (value: number | null) =>
+  value == null ? null : `${value > 0 ? '+' : ''}${value.toFixed(1)}R`;
 export const datetime = (value: string | null, short = false) =>
   value
     ? new Intl.DateTimeFormat('en-IN', {
@@ -276,80 +284,250 @@ export function EquityChart({
   );
 }
 
-export function PositionsTable({
+export const exitReasonLabel = (reason: string | null) =>
+  reason === 'TARGET'
+    ? 'Target hit'
+    : reason === 'STOP'
+      ? 'Stop hit'
+      : reason === 'MANUAL'
+        ? 'Manual exit'
+        : reason === 'RECONCILED'
+          ? 'Reconciled'
+          : null;
+
+/** Rupee P&L with its percentage return and R-multiple underneath. Same figure everywhere. */
+export function PnlValue({
+  pnl,
+  returnPercent,
+  r,
+  size = 'table',
+  placeholder,
+}: {
+  pnl: string | null;
+  returnPercent: number | null;
+  r: number | null;
+  size?: 'table' | 'card' | 'detail';
+  /** Shown under the dash when there is no P&L yet, e.g. "Awaiting fill". */
+  placeholder?: string;
+}) {
+  if (pnl == null)
+    return (
+      <span className={`pnl-value pnl-${size} muted`}>
+        <strong>—</strong>
+        {placeholder && <small>{placeholder}</small>}
+      </span>
+    );
+  const detail = [signedPercent(returnPercent), rLabel(r)].filter(
+    (part): part is string => !!part && part !== '—',
+  );
+  return (
+    <span className={`pnl-value pnl-${size} ${pnlClass(pnl)}`}>
+      <strong>{signed(pnl)}</strong>
+      {detail.length > 0 && <small>{detail.join(' · ')}</small>}
+    </span>
+  );
+}
+
+/** Secondary line under a status badge: why a trade ended, how long it has been held, or what it waits on. */
+function statusNote(trade: Trade): string | null {
+  if (trade.recoveryPaused) return 'Needs review';
+  if (trade.status === 'CLOSED') {
+    const reason = exitReasonLabel(trade.exitReason);
+    return trade.inferred ? `${reason ?? 'Closed'} · estimated fill` : reason;
+  }
+  if (trade.status === 'OPEN') {
+    const days = holdingDays(trade);
+    if (trade.inferred) return 'Estimated fill';
+    return days == null
+      ? null
+      : days === 0
+        ? 'Opened today'
+        : `Held ${days} ${days === 1 ? 'day' : 'days'}`;
+  }
+  if (trade.status === 'PENDING')
+    return trade.entryType === 'LIMIT'
+      ? trade.expiresAt
+        ? `Limit · expires ${datetime(trade.expiresAt, true)}`
+        : 'Limit order'
+      : 'Market order';
+  return trade.rejectionReason ? 'Not filled' : null;
+}
+
+/**
+ * The one trade list used by the overview and the journal, so a trade reads the same wherever it
+ * appears. Desktop renders a table; phones get the same data as stacked cards.
+ */
+export function TradeTable({
   trades,
   onSelect,
   emptyAction,
+  emptyTitle = 'Make room for your next idea',
+  emptyDescription = 'Your open and pending trades will live here. Start with a setup you believe in.',
 }: {
   trades: Trade[];
   onSelect: (id: string) => void;
   emptyAction?: ReactNode;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }) {
   if (!trades.length)
     return (
       <Empty
         icon={<ArrowUpRight size={25} />}
-        title="Make room for your next idea"
-        description="Your open and pending trades will live here. Start with a setup you believe in."
+        title={emptyTitle}
+        description={emptyDescription}
         action={emptyAction}
       />
     );
+  const rows = trades.map((t) => {
+    const filled = t.status === 'OPEN' || t.status === 'CLOSED';
+    const pnl = tradePnl(t);
+    const entry = filled
+      ? { value: money(t.entryPrice), note: datetime(t.entryAt, true) }
+      : t.entryType === 'LIMIT'
+        ? { value: money(t.limitPrice), note: 'Limit price' }
+        : { value: 'Market', note: t.status === 'PENDING' ? 'Awaiting fill' : 'Not filled' };
+    const mark =
+      t.status === 'CLOSED'
+        ? { value: money(t.exitPrice), note: datetime(t.exitAt, true), label: 'Exit' }
+        : t.quote
+          ? { value: money(t.quote.ltp), note: datetime(t.quote.ts, true), label: 'Last' }
+          : { value: '—', note: t.status === 'OPEN' ? 'Quote unavailable' : null, label: 'Last' };
+    return {
+      t,
+      pnl,
+      entry,
+      mark,
+      returnPercent: tradeReturnPercent(t),
+      r: rMultiple(pnl, t.initialRisk),
+      note: statusNote(t),
+      placeholder: t.status === 'PENDING' ? 'Awaiting fill' : undefined,
+    };
+  });
   return (
-    <div className="table-scroll">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Instrument</th>
-            <th>Status</th>
-            <th className="number">Entry / limit</th>
-            <th className="number">Last price</th>
-            <th className="number">P&L</th>
-            <th className="number">Target / stop</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {trades.map((t) => (
-            <tr key={t.id} onClick={() => onSelect(t.id)}>
-              <td>
-                <button className="instrument-cell" onClick={() => onSelect(t.id)}>
-                  <span className="symbol-avatar">{t.symbol.slice(0, 2)}</span>
-                  <span>
-                    <strong>{t.symbol}</strong>
-                    <small>
-                      {t.qty} shares · {t.setupTag || 'No setup tag'}
-                    </small>
-                  </span>
-                </button>
-              </td>
-              <td>
-                <Status status={t.status} />
-              </td>
-              <td className="number">{money(t.entryPrice ?? t.limitPrice ?? t.quote?.ltp)}</td>
-              <td className="number">
-                {t.quote ? (
-                  <>
-                    {money(t.quote.ltp)}
-                    <small>{datetime(t.quote.ts)}</small>
-                  </>
-                ) : (
-                  <span className="muted">Unavailable</span>
-                )}
-              </td>
-              <td className={`number ${pnlClass(t.unrealisedPnl)}`}>
-                {t.unrealisedPnl != null ? signed(t.unrealisedPnl) : '—'}
-              </td>
-              <td className="number">
-                <span>{money(t.targetPrice)}</span>
-                <small>{money(t.stopPrice)}</small>
-              </td>
-              <td>
-                <ChevronRight size={16} className="muted" />
-              </td>
+    <>
+      <div className="table-scroll trade-table-desktop">
+        <table className="data-table trade-table">
+          <thead>
+            <tr>
+              <th>Instrument</th>
+              <th>Status</th>
+              <th className="number">Entry</th>
+              <th className="number">Last / exit</th>
+              <th className="number">P&L</th>
+              <th className="number">Target / stop</th>
+              <th />
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map(({ t, pnl, entry, mark, returnPercent, r, note, placeholder }) => (
+              <tr key={t.id} onClick={() => onSelect(t.id)}>
+                <td>
+                  <button className="instrument-cell" onClick={() => onSelect(t.id)}>
+                    <span className="symbol-avatar">{t.symbol.slice(0, 2)}</span>
+                    <span>
+                      <strong>{t.symbol}</strong>
+                      <small>
+                        {t.qty} {t.qty === 1 ? 'share' : 'shares'}
+                        {t.setupTag ? ` · ${t.setupTag}` : ''}
+                      </small>
+                    </span>
+                  </button>
+                </td>
+                <td>
+                  <Status status={t.status} />
+                  {note && <small>{note}</small>}
+                </td>
+                <td className="number">
+                  <span>{entry.value}</span>
+                  {entry.note && <small>{entry.note}</small>}
+                </td>
+                <td className="number">
+                  <span>{mark.value}</span>
+                  {mark.note && (
+                    <small>
+                      {mark.label} · {mark.note}
+                    </small>
+                  )}
+                </td>
+                <td className="number">
+                  <PnlValue
+                    pnl={pnl}
+                    returnPercent={returnPercent}
+                    r={r}
+                    placeholder={placeholder}
+                  />
+                </td>
+                <td className="number">
+                  <span>{money(t.targetPrice)}</span>
+                  <small>Stop {money(t.stopPrice)}</small>
+                </td>
+                <td>
+                  <ChevronRight size={16} className="muted" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="trade-cards" aria-label="Trades">
+        {rows.map(({ t, pnl, entry, mark, returnPercent, r, note, placeholder }) => (
+          <li key={t.id}>
+            <button className="trade-card" onClick={() => onSelect(t.id)}>
+              <span className="trade-card-head">
+                <span className="symbol-avatar">{t.symbol.slice(0, 2)}</span>
+                <span className="trade-card-title">
+                  <strong>{t.symbol}</strong>
+                  <small>
+                    {t.qty} {t.qty === 1 ? 'share' : 'shares'}
+                    {t.setupTag ? ` · ${t.setupTag}` : ''}
+                  </small>
+                </span>
+                <span className="trade-card-status">
+                  <Status status={t.status} />
+                  {note && <small>{note}</small>}
+                </span>
+              </span>
+              <span className="trade-card-pnl">
+                <span className="trade-card-label">
+                  {t.status === 'CLOSED'
+                    ? 'Net P&L'
+                    : t.status === 'OPEN'
+                      ? 'Unrealised P&L'
+                      : 'P&L'}
+                </span>
+                <PnlValue
+                  pnl={pnl}
+                  returnPercent={returnPercent}
+                  r={r}
+                  size="card"
+                  placeholder={placeholder}
+                />
+              </span>
+              <span className="trade-card-grid">
+                <span>
+                  <span className="trade-card-label">Entry</span>
+                  <strong>{entry.value}</strong>
+                  {entry.note && <small>{entry.note}</small>}
+                </span>
+                <span>
+                  <span className="trade-card-label">{mark.label}</span>
+                  <strong>{mark.value}</strong>
+                  {mark.note && <small>{mark.note}</small>}
+                </span>
+                <span>
+                  <span className="trade-card-label">Target</span>
+                  <strong>{money(t.targetPrice)}</strong>
+                </span>
+                <span>
+                  <span className="trade-card-label">Stop</span>
+                  <strong>{money(t.stopPrice)}</strong>
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

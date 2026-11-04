@@ -68,7 +68,8 @@ npm test
 - Separate cash, buying-power reservations, positions, journal, settings, and statistics per user.
 - Market and limit entries, queued orders outside market hours, target/stop exits, manual exit, cancellation, configurable expiry, and an audit timeline.
 - Decimal monetary calculations, zero transaction charges, opening-gap rules, conservative candle recovery, and visible delayed/stale/inferred data states.
-- Dashboard, responsive order form, journal filters and CSV export, equity curve, expectancy, R multiples, and drawdown.
+- Dashboard, responsive order form, journal filters and CSV export, equity curve, expectancy, R multiples, and drawdown. Every P&L figure is shown with its percentage return and R-multiple, and the overview and journal share one trade list (a table on desktop, stacked cards on phones).
+- Readable by design: a WCAG AA colour palette, a 12px minimum text size, and a bottom bar on phones reserved for navigation. Logging out lives in the account menu (top-right avatar) and on the Settings page.
 - Optional verified per-user Telegram alerts through a retrying outbox. No private activity is broadcast to a global chat.
 - Three-container deployment, HTTPS proxy guidance, nightly backup script, disposable restore verification, and operator password reset.
 

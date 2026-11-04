@@ -156,6 +156,8 @@ test('mobile screens remain usable at 375px', async ({ page }) => {
   await page.getByRole('button', { name: 'Step into your portfolio' }).click();
   const mobileNav = page.getByRole('navigation', { name: 'Mobile navigation', exact: true });
   await expect(mobileNav).toBeVisible();
+  // Logging out is deliberate, not a thumb-slip: it is never in the bottom bar.
+  await expect(mobileNav.getByRole('button', { name: 'Log out', exact: true })).toHaveCount(0);
   for (const label of ['Home', 'New trade', 'Journal', 'Insights', 'Settings']) {
     await mobileNav.getByRole('button', { name: label, exact: true }).click();
     await noOverflow(page);
@@ -164,4 +166,8 @@ test('mobile screens remain usable at 375px', async ({ page }) => {
       fullPage: true,
     });
   }
+  await page.getByRole('button', { name: 'Account menu', exact: true }).click();
+  await page.screenshot({ path: `${screenshotDirectory}/account-menu-mobile.png` });
+  await page.getByRole('menuitem', { name: 'Log out', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible();
 });

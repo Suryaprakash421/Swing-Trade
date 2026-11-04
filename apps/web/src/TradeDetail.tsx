@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight, Check, Clock3, Info, ShieldCheck, Target } from 'lucide-react';
 import { api, patch, post } from './api';
+import { holdingDays, rMultiple, tradeCost, tradePnl, tradeReturnPercent } from './pnl';
 import type { Trade, TradeDetail as Detail } from './types';
-import { Button, datetime, ErrorBox, Modal, money, pnlClass, signed, Status } from './ui';
+import { Button, datetime, ErrorBox, Modal, money, PnlValue, Status } from './ui';
 
 export default function TradeDetail({
   id,
@@ -29,8 +30,8 @@ export default function TradeDetail({
     return api<Detail>(`/trades/${id}`)
       .then((result) => {
         setDetail(result);
-        setTarget(result.trade.targetPrice);
-        setStop(result.trade.stopPrice);
+        setTarget(Number(result.trade.targetPrice).toFixed(2));
+        setStop(Number(result.trade.stopPrice).toFixed(2));
         setTag(result.trade.setupTag);
         setThesis(result.trade.thesis);
         setReview(result.trade.review);
@@ -94,6 +95,8 @@ export default function TradeDetail({
     }
   }
   const t = detail?.trade;
+  const pnl = t ? tradePnl(t) : null;
+  const held = t ? holdingDays(t) : null;
   return (
     <Modal title={t ? `${t.symbol} · Trade journal` : 'Trade journal'} onClose={onClose} wide>
       {error && <ErrorBox message={error} retry={detail ? undefined : () => void load()} />}
@@ -134,14 +137,37 @@ export default function TradeDetail({
               </strong>
             </div>
             <div>
-              <span>{t!.status === 'CLOSED' ? 'Realised P&L' : 'Unrealised P&L'}</span>
-              <strong className={pnlClass(t!.status === 'CLOSED' ? t!.netPnl : t!.unrealisedPnl)}>
-                {(t!.status === 'CLOSED' ? t!.netPnl : t!.unrealisedPnl) != null
-                  ? signed(t!.status === 'CLOSED' ? t!.netPnl : t!.unrealisedPnl)
-                  : '—'}
-              </strong>
+              <span>{t!.status === 'CLOSED' ? 'Net P&L' : 'Unrealised P&L'}</span>
+              <PnlValue
+                pnl={pnl}
+                returnPercent={tradeReturnPercent(t!)}
+                r={rMultiple(pnl, t!.initialRisk)}
+                size="detail"
+              />
             </div>
           </div>
+          <dl className="detail-facts">
+            <div>
+              <dt>Invested</dt>
+              <dd>{tradeCost(t!) ? money(tradeCost(t!)) : '—'}</dd>
+            </div>
+            <div>
+              <dt>Initial risk</dt>
+              <dd>{t!.initialRisk ? money(t!.initialRisk) : '—'}</dd>
+            </div>
+            <div>
+              <dt>{t!.status === 'CLOSED' ? 'Held for' : 'Holding'}</dt>
+              <dd>{held == null ? '—' : `${held} ${held === 1 ? 'day' : 'days'}`}</dd>
+            </div>
+            <div>
+              <dt>Exit reason</dt>
+              <dd>
+                {t!.exitReason
+                  ? t!.exitReason.charAt(0) + t!.exitReason.slice(1).toLowerCase()
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
           {t!.rejectionReason && (
             <div className="inline-notice warning">
               <Info size={16} />

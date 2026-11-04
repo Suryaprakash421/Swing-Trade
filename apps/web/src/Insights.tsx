@@ -8,6 +8,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { api } from './api';
+import { percentOf, tradeReturnPercent } from './pnl';
 import { retainEqual } from './refresh';
 import type { EquityCurve, Stats } from './types';
 import {
@@ -21,6 +22,7 @@ import {
   percent,
   pnlClass,
   signed,
+  signedPercent,
 } from './ui';
 
 export default function Insights({
@@ -179,6 +181,18 @@ export default function Insights({
               />
               <dl>
                 <div>
+                  <dt>Net P&L</dt>
+                  <dd className={pnlClass(stats.netPnl)}>
+                    {signed(stats.netPnl)}
+                    {curve && (
+                      <small>
+                        {' '}
+                        ({signedPercent(percentOf(stats.netPnl, curve.initialCapital))})
+                      </small>
+                    )}
+                  </dd>
+                </div>
+                <div>
                   <dt>Average win</dt>
                   <dd className="positive">{money(stats.averageWin)}</dd>
                 </div>
@@ -254,6 +268,9 @@ export default function Insights({
                   <h3>{stats.bestTrade?.symbol ?? '—'}</h3>
                   <p className={pnlClass(stats.bestTrade?.netPnl)}>
                     {signed(stats.bestTrade?.netPnl)}
+                    {stats.bestTrade && (
+                      <small> {signedPercent(tradeReturnPercent(stats.bestTrade))}</small>
+                    )}
                   </p>
                 </div>
               </section>
@@ -266,6 +283,9 @@ export default function Insights({
                   <h3>{stats.worstTrade?.symbol ?? '—'}</h3>
                   <p className={pnlClass(stats.worstTrade?.netPnl)}>
                     {signed(stats.worstTrade?.netPnl)}
+                    {stats.worstTrade && (
+                      <small> {signedPercent(tradeReturnPercent(stats.worstTrade))}</small>
+                    )}
                   </p>
                 </div>
               </section>

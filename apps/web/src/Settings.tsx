@@ -3,6 +3,7 @@ import {
   Check,
   CircleCheck,
   LockKeyhole,
+  LogOut,
   RefreshCcw,
   ShieldCheck,
   User,
@@ -16,10 +17,12 @@ export default function Settings({
   account,
   username,
   onChanged,
+  onLogout,
 }: {
   account: Account;
   username: string;
   onChanged: (message: string) => void;
+  onLogout: () => void;
 }) {
   const [capital, setCapital] = useState(account.startingCapital);
   const [slippage, setSlippage] = useState(String(account.slippageBps / 100));
@@ -97,8 +100,12 @@ export default function Settings({
             </div>
             <p className="settings-description">
               Your trades, notes, cash, and statistics are visible only to your account. Logging out
-              closes your current session.
+              closes your current session on this device.
             </p>
+            <Button variant="secondary" type="button" onClick={onLogout}>
+              <LogOut size={16} />
+              Log out
+            </Button>
           </section>
           <section className="card settings-card">
             <div className="settings-section-heading">

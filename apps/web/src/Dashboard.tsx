@@ -9,6 +9,7 @@ import {
   Sprout,
   Wallet,
 } from 'lucide-react';
+import { percentOf } from './pnl';
 import type { Account, EquityCurve, Page, Stats, Trade } from './types';
 import {
   Button,
@@ -16,10 +17,10 @@ import {
   EquityChart,
   money,
   num,
-  percent,
   pnlClass,
-  PositionsTable,
   signed,
+  signedPercent,
+  TradeTable,
 } from './ui';
 
 export default function Dashboard({
@@ -43,7 +44,10 @@ export default function Dashboard({
   const open = active.filter((t) => t.status === 'OPEN');
   const pending = active.filter((t) => t.status === 'PENDING');
   const totalPnl = num(account.realisedPnl) + num(account.unrealisedPnl);
-  const pnlPct = num(account.startingCapital) ? (totalPnl / num(account.startingCapital)) * 100 : 0;
+  const totalPct = percentOf(totalPnl, account.startingCapital);
+  const unrealisedPct = percentOf(account.unrealisedPnl, account.investedValue);
+  const realisedPct = percentOf(account.realisedPnl, account.startingCapital);
+  const deployedPct = percentOf(account.investedValue, account.equity);
   return (
     <>
       <div className="dashboard-welcome">
@@ -71,11 +75,11 @@ export default function Dashboard({
           </div>
           <strong className="metric-value">{money(account.equity)}</strong>
           <div className="metric-bottom">
-            <span className={pnlClass(totalPnl)}>
+            <span className={`metric-delta ${pnlClass(totalPnl)}`}>
               {totalPnl >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownLeft size={14} />}
-              {percent(pnlPct)} all time
+              {signed(totalPnl)} ({signedPercent(totalPct)})
             </span>
-            <span>Virtual portfolio</span>
+            <span>all time</span>
           </div>
           <div className="equity-decoration" aria-hidden="true">
             <svg viewBox="0 0 160 50">
@@ -99,9 +103,14 @@ export default function Dashboard({
           <div className="metric-bottom">
             <span>
               {num(account.reservedCash)
-                ? `${money(account.reservedCash)} reserved`
-                : 'Ready for your next idea'}
+                ? `${money(account.reservedCash)} reserved for pending orders`
+                : num(account.investedValue)
+                  ? `${money(account.investedValue)} invested`
+                  : 'Ready for your next idea'}
             </span>
+            {deployedPct != null && num(account.investedValue) > 0 && (
+              <span className="mini-pill">{deployedPct.toFixed(0)}% deployed</span>
+            )}
           </div>
         </article>
         <article className="metric-card">
@@ -115,6 +124,9 @@ export default function Dashboard({
             {signed(account.unrealisedPnl)}
           </strong>
           <div className="metric-bottom">
+            <span className={`metric-delta ${pnlClass(account.unrealisedPnl)}`}>
+              {unrealisedPct != null ? `${signedPercent(unrealisedPct)} on invested` : '—'}
+            </span>
             <span>
               {open.length} open {open.length === 1 ? 'position' : 'positions'}
             </span>
@@ -131,11 +143,13 @@ export default function Dashboard({
             {signed(account.realisedPnl)}
           </strong>
           <div className="metric-bottom">
+            <span className={`metric-delta ${pnlClass(account.realisedPnl)}`}>
+              {realisedPct != null ? `${signedPercent(realisedPct)} of capital` : '—'}
+            </span>
             <span>
               {stats?.totalTrades ?? 0} completed{' '}
               {(stats?.totalTrades ?? 0) === 1 ? 'trade' : 'trades'}
             </span>
-            <span className="mini-pill">Zero charges</span>
           </div>
         </article>
       </div>
@@ -149,7 +163,8 @@ export default function Dashboard({
           <div className="chart-headline">
             <strong>{money(account.equity)}</strong>
             <span className={pnlClass(totalPnl)}>
-              {signed(totalPnl)} <span className="muted">since you started</span>
+              {signed(totalPnl)} ({signedPercent(totalPct)}){' '}
+              <span className="muted">since you started</span>
             </span>
           </div>
           <EquityChart curve={curve} />
@@ -214,7 +229,7 @@ export default function Dashboard({
             </button>
           }
         />
-        <PositionsTable
+        <TradeTable
           trades={active}
           onSelect={onSelect}
           emptyAction={

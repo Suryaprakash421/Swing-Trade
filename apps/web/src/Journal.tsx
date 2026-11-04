@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowRight, BookOpen, ChevronRight, Search } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, BookOpen, Search } from 'lucide-react';
 import { api } from './api';
+import { percentOf, tradeCost, tradePnl } from './pnl';
 import { retainEqual } from './refresh';
 import type { Trade } from './types';
 import {
   Button,
-  datetime,
-  Empty,
   ErrorBox,
-  money,
+  num,
   PageHeading,
   pnlClass,
   signed,
-  Status,
+  signedPercent,
+  TradeTable,
 } from './ui';
 
 export default function Journal({
@@ -42,6 +42,21 @@ export default function Journal({
   if (from) params.set('from', from);
   if (to) params.set('to', to);
   const query = params.toString();
+  const filtered = Boolean(symbol || tag || reason || from || to);
+  // Net result of the trades on screen, so a filtered list answers "how did these do?" directly.
+  const summary = (() => {
+    const measured = trades.filter((t) => tradePnl(t) != null);
+    if (!measured.length) return null;
+    const pnl = measured.reduce((sum, t) => sum + num(tradePnl(t)), 0);
+    const cost = measured.reduce((sum, t) => sum + tradeCost(t), 0);
+    const allClosed = measured.every((t) => t.status === 'CLOSED');
+    const allOpen = measured.every((t) => t.status === 'OPEN');
+    return {
+      pnl: pnl.toFixed(2),
+      percent: percentOf(pnl, cost),
+      label: allClosed ? 'Net P&L' : allOpen ? 'Unrealised P&L' : 'Combined P&L',
+    };
+  })();
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
@@ -182,94 +197,43 @@ export default function Journal({
             <span className="loader" />
             Gathering your trades…
           </div>
-        ) : !trades.length ? (
-          <Empty
-            icon={<BookOpen size={25} />}
-            title={
-              symbol || tag || reason || from || to
-                ? 'No trades match these filters'
-                : 'A fresh page, ready for your story'
-            }
-            description={
-              symbol || tag || reason || from || to
-                ? 'Try a broader date range or clear a filter.'
-                : 'Your trades will appear here as you place and complete them. Add a note to turn each one into a lesson.'
-            }
-            action={
-              <Button variant="secondary" onClick={onNew}>
-                Plan a paper trade
-                <ArrowRight size={16} />
-              </Button>
-            }
-          />
         ) : (
           <>
-            <div className="table-scroll">
-              <table className="data-table journal-table">
-                <thead>
-                  <tr>
-                    <th>Instrument</th>
-                    <th>Status</th>
-                    <th>Dates · IST</th>
-                    <th className="number">Entry</th>
-                    <th className="number">Exit</th>
-                    <th className="number">Net P&L</th>
-                    <th>Exit reason</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {trades.map((t) => (
-                    <tr key={t.id} onClick={() => onSelect(t.id)}>
-                      <td>
-                        <button className="instrument-cell" onClick={() => onSelect(t.id)}>
-                          <span className="symbol-avatar">{t.symbol.slice(0, 2)}</span>
-                          <span>
-                            <strong>{t.symbol}</strong>
-                            <small>
-                              {t.qty} shares{t.setupTag ? ` · ${t.setupTag}` : ''}
-                            </small>
-                          </span>
-                        </button>
-                      </td>
-                      <td>
-                        <Status status={t.status} />
-                      </td>
-                      <td>
-                        <span>{datetime(t.entryAt ?? t.createdAt, true)}</span>
-                        {t.exitAt && <small>to {datetime(t.exitAt, true)}</small>}
-                      </td>
-                      <td className="number">{t.entryPrice ? money(t.entryPrice) : '—'}</td>
-                      <td className="number">{t.exitPrice ? money(t.exitPrice) : '—'}</td>
-                      <td className={`number ${pnlClass(t.netPnl)}`}>
-                        {t.netPnl != null ? signed(t.netPnl) : '—'}
-                      </td>
-                      <td>
-                        <span className={`exit-reason ${(t.exitReason ?? '').toLowerCase()}`}>
-                          {t.exitReason === 'TARGET'
-                            ? 'Target hit'
-                            : t.exitReason === 'STOP'
-                              ? 'Stop hit'
-                              : t.exitReason === 'MANUAL'
-                                ? 'Manual'
-                                : '—'}
-                        </span>
-                        {t.inferred && <small>Estimated fill</small>}
-                      </td>
-                      <td>
-                        <ChevronRight size={16} className="muted" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="table-footer">
-              <span>
-                {trades.length} {trades.length === 1 ? 'trade' : 'trades'}
-              </span>
-              <span>Amounts in INR · Zero transaction charges</span>
-            </div>
+            <TradeTable
+              trades={trades}
+              onSelect={onSelect}
+              emptyTitle={
+                filtered ? 'No trades match these filters' : 'A fresh page, ready for your story'
+              }
+              emptyDescription={
+                filtered
+                  ? 'Try a broader date range or clear a filter.'
+                  : 'Your trades will appear here as you place and complete them. Add a note to turn each one into a lesson.'
+              }
+              emptyAction={
+                <Button variant="secondary" onClick={onNew}>
+                  Plan a paper trade
+                  <ArrowRight size={16} />
+                </Button>
+              }
+            />
+            {trades.length > 0 && (
+              <div className="table-footer">
+                <span>
+                  {trades.length} {trades.length === 1 ? 'trade' : 'trades'}
+                  {summary && (
+                    <>
+                      {' · '}
+                      {summary.label}{' '}
+                      <strong className={pnlClass(summary.pnl)}>
+                        {signed(summary.pnl)} ({signedPercent(summary.percent)})
+                      </strong>
+                    </>
+                  )}
+                </span>
+                <span>Amounts in INR · Zero transaction charges</span>
+              </div>
+            )}
           </>
         )}
       </section>

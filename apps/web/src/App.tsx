@@ -3,6 +3,7 @@ import {
   BookOpen,
   ChartNoAxesCombined,
   Check,
+  ChevronDown,
   ChevronRight,
   Clock3,
   LayoutDashboard,
@@ -53,6 +54,8 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const refreshingRef = useRef(false);
   const pendingRefresh = useRef<{ silent: boolean; scope: RefreshScope } | null>(null);
   const authEpoch = useRef(0);
@@ -69,8 +72,27 @@ export default function App() {
   function navigate(next: Page) {
     window.location.hash = next;
     setPage(next);
+    setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
+  // The account menu closes on an outside tap or Escape, like any standard popover.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointer = (event: MouseEvent | TouchEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('touchstart', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('touchstart', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
   const clearPrivateState = useCallback(() => {
     authEpoch.current += 1;
     activeRefresh.current?.abort();
@@ -88,6 +110,7 @@ export default function App() {
     setRefreshing(false);
     setLastUpdated(null);
     setRevision(0);
+    setMenuOpen(false);
   }, []);
   const authenticate = useCallback(
     (result: AuthData) => {
@@ -353,7 +376,48 @@ export default function App() {
             >
               <RefreshCw size={16} className={refreshing ? 'spinning' : ''} />
             </button>
-            <span className="topbar-avatar">{auth.user.username.slice(0, 1).toUpperCase()}</span>
+            <div className="account-menu" ref={menuRef}>
+              <button
+                className={`account-menu-trigger ${menuOpen ? 'open' : ''}`}
+                aria-label="Account menu"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <span className="topbar-avatar" aria-hidden="true">
+                  {auth.user.username.slice(0, 1).toUpperCase()}
+                </span>
+                <ChevronDown size={14} aria-hidden="true" />
+              </button>
+              {menuOpen && (
+                <div className="account-popover" role="menu" aria-label="Account">
+                  <div className="account-popover-head">
+                    <span className="user-avatar" aria-hidden="true">
+                      {auth.user.username.slice(0, 2).toUpperCase()}
+                    </span>
+                    <div>
+                      <strong>{auth.user.username}</strong>
+                      <small>Personal paper trading account</small>
+                    </div>
+                  </div>
+                  <button role="menuitem" onClick={() => navigate('settings')}>
+                    <Settings2 size={16} />
+                    Account settings
+                  </button>
+                  <button
+                    role="menuitem"
+                    className="account-popover-logout"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void logout();
+                    }}
+                  >
+                    <LogOut size={16} />
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <main className="main-content" id="main-content">
@@ -413,7 +477,12 @@ export default function App() {
           ) : page === 'insights' ? (
             <Insights revision={revision} curve={curve} />
           ) : (
-            <Settings account={account} username={auth.user.username} onChanged={changed} />
+            <Settings
+              account={account}
+              username={auth.user.username}
+              onChanged={changed}
+              onLogout={() => void logout()}
+            />
           )}
         </main>
         <footer className="app-footer">
@@ -436,12 +505,13 @@ export default function App() {
           >
             <Icon size={20} />
             <span>{label === 'Overview' ? 'Home' : label}</span>
+            {id === 'overview' && activeCount > 0 && (
+              <span className="mobile-nav-count" aria-hidden="true">
+                {activeCount}
+              </span>
+            )}
           </button>
         ))}
-        <button onClick={logout} aria-label="Log out">
-          <LogOut size={20} />
-          <span>Log out</span>
-        </button>
       </nav>
       {selected && account && (
         <TradeDetail

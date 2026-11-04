@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import {
   ArrowRight,
   Check,
@@ -20,6 +20,7 @@ export default function Auth({ onSuccess }: { onSuccess: (auth: AuthData) => voi
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const ids = useId();
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
@@ -147,9 +148,10 @@ export default function Auth({ onSuccess }: { onSuccess: (auth: AuthData) => voi
           </div>
           <form onSubmit={submit}>
             {error && <ErrorBox message={error} />}
-            <label className="field">
-              Username
+            <div className="field">
+              <label htmlFor={`${ids}-username`}>Username</label>
               <input
+                id={`${ids}-username`}
                 autoComplete="username"
                 name="username"
                 value={username}
@@ -159,10 +161,13 @@ export default function Auth({ onSuccess }: { onSuccess: (auth: AuthData) => voi
                 maxLength={30}
                 pattern="[A-Za-z0-9_]+"
                 placeholder="Your username"
+                aria-describedby={create ? `${ids}-username-hint` : undefined}
                 autoFocus
               />
-              {create && <small>3–30 letters, numbers, or underscores.</small>}
-            </label>
+              {create && (
+                <small id={`${ids}-username-hint`}>3–30 letters, numbers, or underscores.</small>
+              )}
+            </div>
             <label className="field">
               Password
               <div className="password-field">

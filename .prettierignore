@@ -7,3 +7,4 @@ playwright-report
 docs/reference
 *.sql
 .env
+.local/

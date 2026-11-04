@@ -112,6 +112,7 @@ export interface Stats {
   averageR: number | null;
   averageHoldingDays: number;
   maxDrawdown: number;
+  netPnl: Money;
   bestTrade: Trade | null;
   worstTrade: Trade | null;
   drawdownBasis?: 'DAILY_EQUITY' | 'FILTERED_CLOSED_TRADES';
