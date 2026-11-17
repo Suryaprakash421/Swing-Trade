@@ -12,10 +12,10 @@ A self-hosted paper trading app for NSE swing trades: you buy at the live price 
 
 ### Success criteria
 
-- Every open trade is checked against live prices for the whole session (9:15–15:30 IST, trading days only).
-- A target or stop-loss hit closes the trade within 5 seconds with a live feed, or within one poll interval with a polled feed.
-- After 30 trades, the stats page shows win rate, average win vs average loss, expectancy and max drawdown without manual work.
-- Restarting the server or VPS loses no trades and misses no exits that happened while it was down (they are reconciled on start).
+- **REQ-SUCCESS-001** Every open trade is checked against live prices for the whole session (9:15–15:30 IST, trading days only).
+- **REQ-SUCCESS-002** A target or stop-loss hit closes the trade within 5 seconds with a live feed, or within one poll interval with a polled feed.
+- **REQ-SUCCESS-003** After 30 trades, the stats page shows win rate, average win vs average loss, expectancy and max drawdown without manual work.
+- **REQ-SUCCESS-004** Restarting the server or VPS loses no trades and misses no exits that happened while it was down (they are reconciled on start).
 
 **User.** A single trader (you), running it on your own VPS. Multi-user is a later option, not v1.
 
@@ -41,34 +41,34 @@ Sixteen requirements in five groups cover v1; IDs are used in tickets and commit
 
 ### Virtual account
 
-- **FR-1** Starting capital is configurable (default ₹1,00,000). Reset clears all trades and restores capital, after a confirm step.
-- **FR-2** Cash = capital − money locked in open trades + realised P&L − charges. Buying is blocked if cash is short.
-- **FR-3** Dashboard shows cash, invested value, current value, unrealised P&L, realised P&L, and total equity.
+- **REQ-ACCOUNT-001** **FR-1** Starting capital is configurable (default ₹1,00,000). Reset clears all trades and restores capital, after a confirm step.
+- **REQ-ACCOUNT-002** **FR-2** Cash = capital − money locked in open trades + realised P&L − charges. Buying is blocked if cash is short.
+- **REQ-ACCOUNT-003** **FR-3** Dashboard shows cash, invested value, current value, unrealised P&L, realised P&L, and total equity.
 
 ### Placing a trade
 
-- **FR-4** Symbol search over the NSE instrument list (e.g. RELIANCE, SBIN), showing the latest price.
-- **FR-5** Order form fields: symbol, quantity (or ₹ amount, converted to whole shares), entry type (market or limit), target price, stop-loss price, notes (thesis, setup tag such as breakout or pullback).
-- **FR-6** Validation: stop < entry < target; quantity ≥ 1; target and stop within ±50% of entry (guards against typos). The form shows risk (₹ and %), reward (₹ and %) and the risk:reward ratio before submit.
-- **FR-7** Market order outside market hours is queued and fills at the next session's first price (see Auto-exit engine).
-- **FR-8** Limit entry stays pending until the price trades at or below the limit; it can be cancelled, and expires after a configurable number of days (default 5).
+- **REQ-ORDER-001** **FR-4** Symbol search over the NSE instrument list (e.g. RELIANCE, SBIN), showing the latest price.
+- **REQ-ORDER-002** **FR-5** Order form fields: symbol, quantity (or ₹ amount, converted to whole shares), entry type (market or limit), target price, stop-loss price, notes (thesis, setup tag such as breakout or pullback).
+- **REQ-ORDER-003** **FR-6** Validation: stop < entry < target; quantity ≥ 1; target and stop within ±50% of entry (guards against typos). The form shows risk (₹ and %), reward (₹ and %) and the risk:reward ratio before submit.
+- **REQ-ORDER-004** **FR-7** Market order outside market hours is queued and fills at the next session's first price (see Auto-exit engine).
+- **REQ-ORDER-005** **FR-8** Limit entry stays pending until the price trades at or below the limit; it can be cancelled, and expires after a configurable number of days (default 5).
 
 ### Managing open trades
 
-- **FR-9** Open positions table: symbol, qty, entry, LTP, target, stop, unrealised P&L (₹ and %), distance to target and stop (%), last price time.
-- **FR-10** Edit target and stop on an open trade. Every change is kept in the trade's event log.
-- **FR-11** Manual exit at the current price.
+- **REQ-TRADE-001** **FR-9** Open positions table: symbol, qty, entry, LTP, target, stop, unrealised P&L (₹ and %), distance to target and stop (%), last price time.
+- **REQ-TRADE-002** **FR-10** Edit target and stop on an open trade. Every change is kept in the trade's event log.
+- **REQ-TRADE-003** **FR-11** Manual exit at the current price.
 
 ### Journal and stats
 
-- **FR-12** Closed trades list with filters (date range, symbol, setup tag, exit reason) and CSV export.
-- **FR-13** Trade detail page: all events (created, filled, modified, exited) with timestamps and prices, plus your notes and a post-trade review field.
-- **FR-14** Stats: total trades, win rate, average win, average loss, expectancy per trade, profit factor, average R-multiple, average holding days, max drawdown, best and worst trade, and the same split by setup tag.
-- **FR-15** Equity curve chart (daily total equity).
+- **REQ-JOURNAL-001** **FR-12** Closed trades list with filters (date range, symbol, setup tag, exit reason) and CSV export.
+- **REQ-JOURNAL-002** **FR-13** Trade detail page: all events (created, filled, modified, exited) with timestamps and prices, plus your notes and a post-trade review field.
+- **REQ-JOURNAL-003** **FR-14** Stats: total trades, win rate, average win, average loss, expectancy per trade, profit factor, average R-multiple, average holding days, max drawdown, best and worst trade, and the same split by setup tag.
+- **REQ-JOURNAL-004** **FR-15** Equity curve chart (daily total equity).
 
 ### Notifications
 
-- **FR-16** Telegram bot message on fill, target hit, stop hit, and manual exit (symbol, price, P&L). Bot token and chat ID come from environment variables; off if not set.
+- **REQ-NOTIFY-001** **FR-16** Telegram bot message on fill, target hit, stop hit, and manual exit (symbol, price, P&L). Bot token and chat ID come from environment variables; off if not set.
 
 ## Auto-exit engine
 
@@ -94,23 +94,23 @@ A market order during hours skips PENDING and opens immediately; only OPEN trade
 
 ### Entry fill rules
 
-1. Market order during market hours fills at the current LTP, plus optional slippage (default 0.05%).
-2. Market order outside hours becomes PENDING and fills at the first price of the next session.
-3. Limit entry fills when LTP ≤ limit, at the limit price. If the session opens below the limit, it fills at the open price.
+1. **REQ-ENTRY-001** Market order during market hours fills at the current LTP, plus optional slippage (default 0.05%).
+2. **REQ-ENTRY-002** Market order outside hours becomes PENDING and fills at the first price of the next session.
+3. **REQ-ENTRY-003** Limit entry fills when LTP ≤ limit, at the limit price. If the session opens below the limit, it fills at the open price.
 
 ### Exit trigger rules
 
-1. On each price update for an OPEN trade: LTP ≥ target → exit with reason TARGET; LTP ≤ stop → exit with reason STOP.
-2. Normal crossing during the session fills at the target or stop level, minus slippage on stops.
-3. **Gap at session open:** if the first price of the day is already beyond a level, the fill is at that opening price. A gap down through the stop is a bigger loss; a gap up over the target is a bigger win. This mirrors real trading and keeps results honest.
-4. If target and stop are both crossed within the same candle (possible with polled data), assume the stop hit first.
-5. The exit runs inside a transaction that locks the trade row (`SELECT … FOR UPDATE`) and re-checks `status = 'OPEN'`, so an auto exit and a manual exit can never both apply.
+1. **REQ-EXIT-001** On each price update for an OPEN trade: LTP ≥ target → exit with reason TARGET; LTP ≤ stop → exit with reason STOP.
+2. **REQ-EXIT-002** Normal crossing during the session fills at the target or stop level, minus slippage on stops.
+3. **REQ-EXIT-003** **Gap at session open:** if the first price of the day is already beyond a level, the fill is at that opening price. A gap down through the stop is a bigger loss; a gap up over the target is a bigger win. This mirrors real trading and keeps results honest.
+4. **REQ-EXIT-004** If target and stop are both crossed within the same candle (possible with polled data), assume the stop hit first.
+5. **REQ-EXIT-005** The exit runs inside a transaction that locks the trade row (`SELECT … FOR UPDATE`) and re-checks `status = 'OPEN'`, so an auto exit and a manual exit can never both apply.
 
 ### Market hours
 
-- Active 09:15–15:30 IST, Monday to Friday, except NSE holidays (kept in a `market_holidays` table, updated yearly).
-- Pre-open (09:00–09:15) prices are ignored; the first price after 09:15 counts as the session open.
-- Outside hours the engine idles; pending market orders wait for the next open.
+- **REQ-HOURS-001** Active 09:15–15:30 IST, Monday to Friday, except NSE holidays (kept in a `market_holidays` table, updated yearly).
+- **REQ-HOURS-002** Pre-open (09:00–09:15) prices are ignored; the first price after 09:15 counts as the session open.
+- **REQ-HOURS-003** Outside hours the engine idles; pending market orders wait for the next open.
 
 ### Recovery after downtime
 
@@ -148,9 +148,9 @@ The engine subscribes only to symbols with OPEN or PENDING trades, plus anything
 
 ### Feed health
 
-- Each tick updates `last_tick_at` per symbol. No tick for 60 s during market hours marks the feed STALE: shown as a warning on the dashboard and sent once to Telegram.
-- While STALE, no exits are booked from old prices. When the feed returns, recovery (previous section) replays the gap from candles.
-- Prices are kept in memory for the engine; only 1-minute bars for symbols with trades are stored (for charts and audits).
+- **REQ-FEED-001** Each tick updates `last_tick_at` per symbol. No tick for 60 s during market hours marks the feed STALE: shown as a warning on the dashboard and sent once to Telegram.
+- **REQ-FEED-002** While STALE, no exits are booked from old prices. When the feed returns, recovery (previous section) replays the gap from candles.
+- **REQ-FEED-003** Prices are kept in memory for the engine; only 1-minute bars for symbols with trades are stored (for charts and audits).
 
 ## Architecture & deployment
 
@@ -195,10 +195,10 @@ Prices flow into the engine only; the API learns about fills and exits from Post
 
 ### Rules
 
-- Only one engine may run: it takes a Postgres advisory lock at start and exits if the lock is held.
-- The engine never reads from the API; the API never books fills or exits (except manual exit, which uses the same locked transaction).
-- All times are stored as `timestamptz` in UTC and shown in IST.
-- Secrets (DB password, Angel One keys, Telegram token, app password hash) live in `.env`, never in the repo.
+- **REQ-ARCH-001** Only one engine may run: it takes a Postgres advisory lock at start and exits if the lock is held.
+- **REQ-ARCH-002** The engine never reads from the API; the API never books fills or exits (except manual exit, which uses the same locked transaction).
+- **REQ-ARCH-003** All times are stored as `timestamptz` in UTC and shown in IST.
+- **REQ-ARCH-004** Secrets (DB password, Angel One keys, Telegram token, app password hash) live in `.env`, never in the repo.
 
 ### docker-compose.yml (outline)
 
