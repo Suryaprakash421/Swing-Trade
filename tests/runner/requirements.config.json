@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "path": "docs/reference/Paper Trading Simulator - PRD.md",
+      "role": "requirements"
+    }
+  ],
+  "idPattern": "REQ-[A-Z][A-Z0-9]*-\\d+"
+}
